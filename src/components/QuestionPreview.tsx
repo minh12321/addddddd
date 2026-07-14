@@ -103,6 +103,10 @@ function renderMeta(question: NormalizedQuestion) {
   return `${question.sourceSheet} · dòng ${question.sourceRow} · ${question.category}`;
 }
 
+function renderClozeAnswerType(type: string) {
+  return type.toUpperCase();
+}
+
 function RichTextPreview({ text }: { text: string }) {
   return <span className="rich-text-preview">{text}</span>;
 }
@@ -177,6 +181,17 @@ export function QuestionPreview({ questions }: QuestionPreviewProps) {
                       {" "}· group {item.group}
                       {question.type === "dragdrop_text" && item.unlimited ? " · dùng lại nhiều lần" : ""}
                     </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {question.type === "cloze" && question.clozeItems.length > 0 && (
+              <ul className="option-list">
+                {question.clozeItems.map((item, itemIndex) => (
+                  <li key={`${item.rowNumber}-${itemIndex}`}>
+                    <strong>{itemIndex + 1}. {renderClozeAnswerType(item.answerType)}</strong> <RichTextPreview text={item.prompt} />
+                    <span className="muted"> {" "}· đáp án: {item.correctAnswers.join("; ")}</span>
                   </li>
                 ))}
               </ul>

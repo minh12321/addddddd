@@ -30,6 +30,7 @@ export interface RawSheetRow {
   passageId: string;
   passageText: string;
   tolerance: string;
+  clozeAnswerType: string;
   dragNo: string;
   dragText: string;
   dragGroup: string;
@@ -55,6 +56,18 @@ export interface DragDropTextItem {
   rowNumber: number;
 }
 
+export type ClozeAnswerType = "shortanswer" | "shortanswer_c" | "numerical" | "multichoice" | "mcv" | "mch";
+
+export interface ClozeItem {
+  prompt: string;
+  answerType: ClozeAnswerType;
+  correctAnswers: string[];
+  options: QuestionOption[];
+  tolerance: number;
+  explanation: string;
+  rowNumber: number;
+}
+
 export interface NormalizedQuestion {
   sourceSheet: string;
   sourceRow: number;
@@ -70,6 +83,7 @@ export interface NormalizedQuestion {
   tolerance: number;
   matchingPairs: MatchingPair[];
   dragDropTextItems: DragDropTextItem[];
+  clozeItems: ClozeItem[];
   isGeneratedPassage?: boolean;
 }
 

@@ -1,6 +1,6 @@
 import { DEFAULT_CATEGORY, OPTION_KEYS, SUPPORTED_TYPES } from "./constants";
 import { cleanText, normalizeTrueFalse, splitAnswers } from "./text";
-import type { NormalizedQuestion, OptionKey, RawSheetRow, SupportedQuestionType } from "../types/moodle";
+import type { ClozeAnswerType, ClozeItem, NormalizedQuestion, OptionKey, RawSheetRow, SupportedQuestionType } from "../types/moodle";
 
 export function normalizeQuestionType(type: string): SupportedQuestionType | "" {
   const normalized = cleanText(type)
@@ -100,6 +100,130 @@ function buildCorrectAnswers(row: RawSheetRow, type: SupportedQuestionType): str
   return answers;
 }
 
+function normalizeClozeAnswerType(row: RawSheetRow): ClozeAnswerType {
+  const normalized = cleanText(row.clozeAnswerType)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Ä‘/g, "d")
+    .replace(/[^a-z0-9]+/g, "");
+
+  const aliases: Record<string, ClozeAnswerType> = {
+    shortanswer: "shortanswer",
+    shortanswercase: "shortanswer_c",
+    shortanswerc: "shortanswer_c",
+    shortanswercasesensitive: "shortanswer_c",
+    shortanswer_c: "shortanswer_c",
+    short: "shortanswer",
+    text: "shortanswer",
+    traloingan: "shortanswer",
+    numerical: "numerical",
+    number: "numerical",
+    numeric: "numerical",
+    so: "numerical",
+    multichoice: "multichoice",
+    multiplechoice: "multichoice",
+    multi: "multichoice",
+    mc: "multichoice",
+    choice: "multichoice",
+    singlechoice: "multichoice",
+    tracnghiem: "multichoice",
+    mcv: "mcv",
+    multichoicev: "mcv",
+    multichoice_v: "mcv",
+    multichoicevertical: "mcv",
+    vertical: "mcv",
+    doc: "mcv",
+    mcc: "mch",
+    mch: "mch",
+    multichoiceh: "mch",
+    multichoice_h: "mch",
+    multichoicehorizontal: "mch",
+    horizontal: "mch",
+    ngang: "mch",
+  };
+
+  if (aliases[normalized]) return aliases[normalized];
+  if (buildOptions(row).length >= 2) return "multichoice";
+
+  const firstAnswer = splitAnswers(row.correctAnswer)[0] || "";
+  const answerNumber = Number(firstAnswer.replace(",", "."));
+  if (firstAnswer && Number.isFinite(answerNumber)) return "numerical";
+
+  return "shortanswer";
+}
+
+function shouldBuildStructuredCloze(row: RawSheetRow): boolean {
+  return Boolean(cleanText(row.correctAnswer) || cleanText(row.clozeAnswerType) || buildOptions(row).length);
+}
+
+function escapeClozeText(value: string): string {
+  return cleanText(value).replace(/([~=#{}])/g, "\\$1");
+}
+
+function normalizeClozeNumericalAnswer(value: string): string {
+  return cleanText(value).replace(",", ".");
+}
+
+function buildClozeItem(row: RawSheetRow): ClozeItem {
+  const answerType = normalizeClozeAnswerType(row);
+  const correctAnswers = splitAnswers(row.correctAnswer);
+
+  return {
+    prompt: row.questionText,
+    answerType,
+    correctAnswers,
+    options: buildOptions(row),
+    tolerance: parseTolerance(row.tolerance),
+    explanation: row.explanation,
+    rowNumber: row.rowNumber,
+  };
+}
+
+function isCorrectClozeOption(option: { key: OptionKey; text: string }, correctAnswers: string[]): boolean {
+  const correctKeySet = new Set(correctAnswers.map((answer) => answer.toUpperCase()));
+  const correctTextSet = new Set(correctAnswers.map((answer) => cleanText(answer).toLowerCase()));
+  return correctKeySet.has(option.key) || correctTextSet.has(cleanText(option.text).toLowerCase());
+}
+
+function buildClozeAnswerCode(item: ClozeItem): string {
+  const weight = 1;
+
+  if (item.answerType === "numerical") {
+    const answer = normalizeClozeNumericalAnswer(item.correctAnswers[0] || "");
+    return `{${weight}:NUMERICAL:=${escapeClozeText(answer)}:${item.tolerance}}`;
+  }
+
+  if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
+    const moodleTypeByAnswerType: Record<"multichoice" | "mcv" | "mch", string> = {
+      multichoice: "MULTICHOICE",
+      mcv: "MCV",
+      mch: "MCH",
+    };
+    const answers = item.options
+      .map((option) => `${isCorrectClozeOption(option, item.correctAnswers) ? "=" : "~"}${escapeClozeText(option.text)}`)
+      .join("");
+    return `{${weight}:${moodleTypeByAnswerType[item.answerType]}:${answers}}`;
+  }
+
+  const answers = item.correctAnswers.map((answer) => `=${escapeClozeText(answer)}`).join("~");
+  return `{${weight}:${item.answerType === "shortanswer_c" ? "SHORTANSWER_C" : "SHORTANSWER"}:${answers}}`;
+}
+
+function buildStructuredClozeText(items: ClozeItem[]): string {
+  return items
+    .map((item, index) => {
+      const answerCode = buildClozeAnswerCode(item);
+      const prompt = cleanText(item.prompt);
+      const promptWithAnswer = prompt.includes("[[answer]]")
+        ? prompt.replace(/\[\[answer\]\]/g, answerCode)
+        : `${prompt} ${answerCode}`.trim();
+
+      return `${index + 1}. ${promptWithAnswer}`;
+    })
+    .join("\n");
+}
+
 function buildQuestionFromRow(row: RawSheetRow, type: SupportedQuestionType): NormalizedQuestion {
   const correctAnswers = buildCorrectAnswers(row, type);
 
@@ -118,6 +242,7 @@ function buildQuestionFromRow(row: RawSheetRow, type: SupportedQuestionType): No
     tolerance: parseTolerance(row.tolerance),
     matchingPairs: [],
     dragDropTextItems: [],
+    clozeItems: [],
   };
 }
 
@@ -152,6 +277,7 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
         tolerance: 0,
         matchingPairs: [],
         dragDropTextItems: [],
+        clozeItems: [],
         isGeneratedPassage: true,
       });
     }
@@ -169,6 +295,23 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
         right: row.rightText,
         rowNumber: row.rowNumber,
       });
+      return;
+    }
+
+    if (type === "cloze" && shouldBuildStructuredCloze(row)) {
+      const mapKey = `${row.sheetName}::${type}::${row.questionId || `row-${row.rowNumber}`}`;
+      let question = placeholderChoiceMap.get(mapKey);
+      if (!question) {
+        question = buildQuestionFromRow(row, type);
+        question.questionText = "";
+        question.correctAnswers = [];
+        placeholderChoiceMap.set(mapKey, question);
+        questions.push(question);
+      }
+
+      question.clozeItems.push(buildClozeItem(row));
+      question.questionText = buildStructuredClozeText(question.clozeItems);
+      question.grade = parseGrade(row.grade, question.grade || question.clozeItems.length);
       return;
     }
 

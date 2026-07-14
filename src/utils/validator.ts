@@ -1,6 +1,6 @@
 import { OPTION_KEYS, SUPPORTED_TYPES } from "./constants";
-import { normalizeTrueFalse } from "./text";
-import type { NormalizedQuestion, ValidationIssue } from "../types/moodle";
+import { cleanText, normalizeTrueFalse } from "./text";
+import type { ClozeItem, NormalizedQuestion, ValidationIssue } from "../types/moodle";
 
 function createIssue(question: NormalizedQuestion, level: "error" | "warning", message: string): ValidationIssue {
   return {
@@ -169,6 +169,53 @@ function validateSelectMissingWords(question: NormalizedQuestion, issues: Valida
   validatePlaceholderChoiceQuestion(question, issues, "select_missing_words");
 }
 
+function createClozeItemIssue(question: NormalizedQuestion, item: ClozeItem, message: string): ValidationIssue {
+  return {
+    level: "error",
+    sheetName: question.sourceSheet,
+    rowNumber: item.rowNumber,
+    questionId: question.questionId,
+    message,
+  };
+}
+
+function isNumericAnswer(value: string): boolean {
+  const number = Number(cleanText(value).replace(",", "."));
+  return Number.isFinite(number);
+}
+
+function validateStructuredCloze(question: NormalizedQuestion, issues: ValidationIssue[]) {
+  question.clozeItems.forEach((item) => {
+    if (!item.prompt) {
+      issues.push(createClozeItemIssue(question, item, "Cloze dạng bảng cần question_text cho từng câu nhỏ."));
+    }
+
+    if (item.correctAnswers.length === 0) {
+      issues.push(createClozeItemIssue(question, item, "Cloze dạng bảng cần correct_answer cho từng câu nhỏ."));
+    }
+
+    if (item.answerType === "numerical" && item.correctAnswers[0] && !isNumericAnswer(item.correctAnswers[0])) {
+      issues.push(createClozeItemIssue(question, item, "Cloze numerical cần correct_answer là số."));
+    }
+
+    if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
+      if (item.options.length < 2) {
+        issues.push(createClozeItemIssue(question, item, `Cloze ${item.answerType} cần ít nhất 2 option.`));
+      }
+
+      const optionKeys = new Set(item.options.map((option) => option.key));
+      const optionTexts = new Set(item.options.map((option) => cleanText(option.text).toLowerCase()));
+      item.correctAnswers.forEach((answer) => {
+        const answerKey = answer.toUpperCase();
+        const answerText = cleanText(answer).toLowerCase();
+        if (!optionKeys.has(answerKey as any) && !optionTexts.has(answerText)) {
+          issues.push(createClozeItemIssue(question, item, `Đáp án đúng '${answer}' không tồn tại trong các option của Cloze ${item.answerType}.`));
+        }
+      });
+    }
+  });
+}
+
 export function validateQuestions(questions: NormalizedQuestion[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const ids = new Map<string, NormalizedQuestion>();
@@ -213,7 +260,9 @@ export function validateQuestions(questions: NormalizedQuestion[]): ValidationIs
         validateSelectMissingWords(question, issues);
         break;
       case "cloze":
-        if (!question.questionText.includes("{")) {
+        if (question.clozeItems.length > 0) {
+          validateStructuredCloze(question, issues);
+        } else if (!question.questionText.includes("{")) {
           issues.push(createIssue(question, "warning", "Cloze thường cần cú pháp {1:SHORTANSWER:=...}."));
         }
         break;
