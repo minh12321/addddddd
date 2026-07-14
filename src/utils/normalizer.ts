@@ -201,7 +201,11 @@ function buildClozeAnswerCode(item: ClozeItem): string {
       mch: "MCH",
     };
     const answers = item.options
-      .map((option) => `${isCorrectClozeOption(option, item.correctAnswers) ? "=" : "~"}${escapeClozeText(option.text)}`)
+      .map((option, index) => {
+        const separator = index === 0 ? "" : "~";
+        const correctnessMarker = isCorrectClozeOption(option, item.correctAnswers) ? "=" : "";
+        return `${separator}${correctnessMarker}${escapeClozeText(option.text)}`;
+      })
       .join("");
     return `{${weight}:${moodleTypeByAnswerType[item.answerType]}:${answers}}`;
   }
