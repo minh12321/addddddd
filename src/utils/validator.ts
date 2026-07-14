@@ -87,15 +87,15 @@ function extractDragPlaceholders(questionText: string): number[] {
   return [...values].sort((a, b) => a - b);
 }
 
-function validateDragDropText(question: NormalizedQuestion, issues: ValidationIssue[]) {
+function validatePlaceholderChoiceQuestion(question: NormalizedQuestion, issues: ValidationIssue[], typeLabel: string) {
   const placeholders = extractDragPlaceholders(question.questionText);
 
   if (placeholders.length === 0) {
-    issues.push(createIssue(question, "error", "dragdrop_text cần có chỗ trống dạng [[1]], [[2]], ... trong question_text."));
+    issues.push(createIssue(question, "error", `${typeLabel} cần có chỗ trống dạng [[1]], [[2]], ... trong question_text.`));
   }
 
   if (question.dragDropTextItems.length === 0) {
-    issues.push(createIssue(question, "error", "dragdrop_text cần ít nhất 1 drag_text."));
+    issues.push(createIssue(question, "error", `${typeLabel} cần ít nhất 1 drag_text.`));
   }
 
   const itemNos = new Set<number>();
@@ -155,10 +155,18 @@ function validateDragDropText(question: NormalizedQuestion, issues: ValidationIs
         sheetName: question.sourceSheet,
         rowNumber: item.rowNumber,
         questionId: question.questionId,
-        message: `drag_no ${item.no} không xuất hiện trong question_text, sẽ được xem là đáp án nhiễu.`,
+        message: `drag_no ${item.no} không xuất hiện trong question_text, sẽ được xem là lựa chọn nhiễu.`,
       });
     }
   });
+}
+
+function validateDragDropText(question: NormalizedQuestion, issues: ValidationIssue[]) {
+  validatePlaceholderChoiceQuestion(question, issues, "dragdrop_text");
+}
+
+function validateSelectMissingWords(question: NormalizedQuestion, issues: ValidationIssue[]) {
+  validatePlaceholderChoiceQuestion(question, issues, "select_missing_words");
 }
 
 export function validateQuestions(questions: NormalizedQuestion[]): ValidationIssue[] {
@@ -200,6 +208,9 @@ export function validateQuestions(questions: NormalizedQuestion[]): ValidationIs
         break;
       case "dragdrop_text":
         validateDragDropText(question, issues);
+        break;
+      case "select_missing_words":
+        validateSelectMissingWords(question, issues);
         break;
       case "cloze":
         if (!question.questionText.includes("{")) {

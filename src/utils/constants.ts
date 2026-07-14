@@ -13,6 +13,7 @@ export const SUPPORTED_TYPES: SupportedQuestionType[] = [
   "description",
   "cloze",
   "dragdrop_text",
+  "select_missing_words",
 ];
 
 export const OPTION_KEYS: OptionKey[] = ["A", "B", "C", "D", "E", "F", "G", "H"];

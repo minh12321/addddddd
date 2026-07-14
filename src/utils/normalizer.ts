@@ -48,6 +48,14 @@ export function normalizeQuestionType(type: string): SupportedQuestionType | "" 
     keothachu: "dragdrop_text",
     keothavanban: "dragdrop_text",
     keothavaotext: "dragdrop_text",
+    gapselect: "select_missing_words",
+    selectmissingwords: "select_missing_words",
+    selectmissingword: "select_missing_words",
+    missingwords: "select_missing_words",
+    missingword: "select_missing_words",
+    selectmissing: "select_missing_words",
+    chontuthieu: "select_missing_words",
+    dienkhuyet: "select_missing_words",
   };
 
   const result = aliases[normalized] || normalized;
@@ -116,7 +124,7 @@ function buildQuestionFromRow(row: RawSheetRow, type: SupportedQuestionType): No
 export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
   const questions: NormalizedQuestion[] = [];
   const matchingMap = new Map<string, NormalizedQuestion>();
-  const dragDropTextMap = new Map<string, NormalizedQuestion>();
+  const placeholderChoiceMap = new Map<string, NormalizedQuestion>();
   const seenPassages = new Set<string>();
 
   rows.forEach((row) => {
@@ -149,7 +157,7 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
     }
 
     if (type === "matching") {
-      const mapKey = `${row.sheetName}::${row.questionId || `row-${row.rowNumber}`}`;
+      const mapKey = `${row.sheetName}::${type}::${row.questionId || `row-${row.rowNumber}`}`;
       let question = matchingMap.get(mapKey);
       if (!question) {
         question = buildQuestionFromRow(row, type);
@@ -164,12 +172,12 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
       return;
     }
 
-    if (type === "dragdrop_text") {
-      const mapKey = `${row.sheetName}::${row.questionId || `row-${row.rowNumber}`}`;
-      let question = dragDropTextMap.get(mapKey);
+    if (type === "dragdrop_text" || type === "select_missing_words") {
+      const mapKey = `${row.sheetName}::${type}::${row.questionId || `row-${row.rowNumber}`}`;
+      let question = placeholderChoiceMap.get(mapKey);
       if (!question) {
         question = buildQuestionFromRow(row, type);
-        dragDropTextMap.set(mapKey, question);
+        placeholderChoiceMap.set(mapKey, question);
         questions.push(question);
       }
 
@@ -187,7 +195,7 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
     questions.push(buildQuestionFromRow(row, type));
   });
 
-  dragDropTextMap.forEach((question) => {
+  placeholderChoiceMap.forEach((question) => {
     question.dragDropTextItems.sort((a, b) => a.no - b.no || a.rowNumber - b.rowNumber);
   });
 

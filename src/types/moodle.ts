@@ -8,7 +8,8 @@ export type SupportedQuestionType =
   | "essay"
   | "description"
   | "cloze"
-  | "dragdrop_text";
+  | "dragdrop_text"
+  | "select_missing_words";
 
 export type OptionKey = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
 

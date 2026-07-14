@@ -83,6 +83,16 @@ function buildDragDropTextXml(question: NormalizedQuestion): string {
   return `  <question type="ddwtos">\n${commonQuestionHeader(question)}\n    <shuffleanswers>1</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${dragBoxes}\n  </question>`;
 }
 
+function buildSelectMissingWordsXml(question: NormalizedQuestion): string {
+  const selectOptions = question.dragDropTextItems
+    .map(
+      (item) => `    <selectoption>\n      ${textTag(item.text)}\n      <group>${item.group}</group>\n    </selectoption>`
+    )
+    .join("\n\n");
+
+  return `  <question type="gapselect">\n${commonQuestionHeader(question)}\n    <shuffleanswers>1</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${selectOptions}\n  </question>`;
+}
+
 function buildEssayXml(question: NormalizedQuestion): string {
   return `  <question type="essay">\n${commonQuestionHeader(question)}\n    <responseformat>editor</responseformat>\n    <responserequired>1</responserequired>\n    <responsefieldlines>15</responsefieldlines>\n    <attachments>0</attachments>\n    <attachmentsrequired>0</attachmentsrequired>\n    <graderinfo format="html">\n      ${textTag(question.explanation)}\n    </graderinfo>\n    <answer fraction="0" format="html">\n      <text></text>\n    </answer>\n  </question>`;
 }
@@ -110,6 +120,8 @@ function buildQuestionXml(question: NormalizedQuestion): string {
       return buildMatchingXml(question);
     case "dragdrop_text":
       return buildDragDropTextXml(question);
+    case "select_missing_words":
+      return buildSelectMissingWordsXml(question);
     case "essay":
       return buildEssayXml(question);
     case "description":

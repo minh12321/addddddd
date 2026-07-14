@@ -32,6 +32,7 @@ Mở: http://localhost:5173
 - `description`: Đoạn mô tả/đọc hiểu.
 - `cloze`: Embedded answers theo cú pháp Cloze của Moodle.
 - `dragdrop_text`: Kéo-thả từ/cụm từ vào chỗ trống trong văn bản, xuất ra Moodle XML type `ddwtos`.
+- `select_missing_words`: Chọn từ/cụm từ còn thiếu bằng hộp chọn thả xuống, xuất ra Moodle XML type `gapselect`.
 
 ## Header chính nên có
 
@@ -49,5 +50,6 @@ passage_id, passage_text, tolerance, drag_no, drag_text, group, unlimited
 - `shortanswer`: nhiều đáp án đúng cách nhau bằng `;`, ví dụ `Hà Nội;Ha Noi`.
 - `truefalse`: chấp nhận `TRUE/FALSE`, `Đúng/Sai`, `1/0`.
 - `dragdrop_text`: nhập nhiều dòng cùng `question_id`; `question_text` chứa chỗ trống dạng `[[1]]`, `[[2]]`; mỗi dòng có `drag_no`, `drag_text`, `group`, `unlimited`.
+- `select_missing_words`: nhập giống `dragdrop_text` nhưng Moodle hiển thị dạng dropdown; dùng `drag_no`, `drag_text`, `group`, không cần `unlimited`.
+- Preview câu hỏi tự tải MathJax để render LaTeX trong text như `$x^2$`, `$$...$$`, `\(...\)` hoặc `\[...\]` khi trình duyệt có kết nối mạng.
 - Nội dung câu hỏi/đáp án được bọc CDATA để tránh lỗi XML với HTML, LaTeX, ký tự `<`, `>`, `&`.
-"# addddddd" 
