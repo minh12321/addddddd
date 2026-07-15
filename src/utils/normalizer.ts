@@ -91,6 +91,24 @@ function buildOptions(row: RawSheetRow) {
   return OPTION_KEYS.map((key: OptionKey) => ({ key, text: cleanText(row.options[key]) })).filter((item) => item.text);
 }
 
+function normalizeOptionalBooleanValue(value: string): string {
+  return cleanText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .replace(/Ä‘/g, "d")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function parseOptionalBoolean(value: string): boolean | undefined {
+  const normalized = normalizeOptionalBooleanValue(value);
+  if (!normalized) return undefined;
+  if (["true", "t", "1", "yes", "y", "co", "dung", "on", "shuffle", "random"].includes(normalized)) return true;
+  if (["false", "f", "0", "no", "n", "khong", "sai", "off", "none"].includes(normalized)) return false;
+  return undefined;
+}
+
 function buildCorrectAnswers(row: RawSheetRow, type: SupportedQuestionType): string[] {
   if (type === "truefalse") return [normalizeTrueFalse(row.correctAnswer)].filter(Boolean);
 
@@ -105,6 +123,7 @@ function normalizeClozeAnswerType(row: RawSheetRow): ClozeAnswerType {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
     .replace(/Ä‘/g, "d")
     .replace(/[^a-z0-9]+/g, "");
 
@@ -175,6 +194,8 @@ function buildClozeItem(row: RawSheetRow): ClozeItem {
     correctAnswers,
     options: buildOptions(row),
     tolerance: parseTolerance(row.tolerance),
+    shuffleAnswers: parseOptionalBoolean(row.shuffleAnswers) ?? false,
+    showCorrectWhenWrong: parseOptionalBoolean(row.showCorrectWhenWrong) ?? true,
     explanation: row.explanation,
     rowNumber: row.rowNumber,
   };
@@ -186,6 +207,18 @@ function isCorrectClozeOption(option: { key: OptionKey; text: string }, correctA
   return correctKeySet.has(option.key) || correctTextSet.has(cleanText(option.text).toLowerCase());
 }
 
+function getCorrectClozeAnswerText(item: ClozeItem): string {
+  if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
+    const correctOptions = item.options
+      .filter((option) => isCorrectClozeOption(option, item.correctAnswers))
+      .map((option) => option.text);
+
+    if (correctOptions.length) return correctOptions.join("; ");
+  }
+
+  return item.correctAnswers.join("; ");
+}
+
 function buildClozeAnswerCode(item: ClozeItem): string {
   const weight = 1;
 
@@ -195,27 +228,45 @@ function buildClozeAnswerCode(item: ClozeItem): string {
   }
 
   if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
-    const moodleTypeByAnswerType: Record<"multichoice" | "mcv" | "mch", string> = {
-      multichoice: "MULTICHOICE",
-      mcv: "MCV",
-      mch: "MCH",
+    const moodleTypeByAnswerType: Record<"multichoice" | "mcv" | "mch", [string, string]> = {
+      multichoice: ["MULTICHOICE", "MULTICHOICE_S"],
+      mcv: ["MCV", "MCVS"],
+      mch: ["MCH", "MCHS"],
     };
+    const moodleType = moodleTypeByAnswerType[item.answerType][item.shuffleAnswers ? 1 : 0];
     const answers = item.options
       .map((option, index) => {
         const separator = index === 0 ? "" : "~";
-        const correctnessMarker = isCorrectClozeOption(option, item.correctAnswers) ? "=" : "";
+        const isCorrect = isCorrectClozeOption(option, item.correctAnswers);
+        const correctnessMarker = isCorrect ? "=" : "";
         return `${separator}${correctnessMarker}${escapeClozeText(option.text)}`;
       })
       .join("");
-    return `{${weight}:${moodleTypeByAnswerType[item.answerType]}:${answers}}`;
+    return `{${weight}:${moodleType}:${answers}}`;
   }
 
   const answers = item.correctAnswers.map((answer) => `=${escapeClozeText(answer)}`).join("~");
   return `{${weight}:${item.answerType === "shortanswer_c" ? "SHORTANSWER_C" : "SHORTANSWER"}:${answers}}`;
 }
 
-function buildStructuredClozeText(items: ClozeItem[]): string {
+function buildStructuredClozeFeedback(items: ClozeItem[]): string {
   return items
+    .map((item, index) => {
+      const parts: string[] = [];
+      const correctAnswerText = getCorrectClozeAnswerText(item);
+      const explanation = cleanText(item.explanation);
+
+      if (item.showCorrectWhenWrong && correctAnswerText) parts.push(`Đáp án đúng: ${correctAnswerText}`);
+      if (explanation) parts.push(explanation);
+
+      return parts.length ? `${index + 1}. ${parts.join(". ")}` : "";
+    })
+    .filter(Boolean)
+    .join("<br>");
+}
+
+function buildStructuredClozeText(items: ClozeItem[], passageText = ""): string {
+  const questionText = items
     .map((item, index) => {
       const answerCode = buildClozeAnswerCode(item);
       const prompt = cleanText(item.prompt);
@@ -225,11 +276,20 @@ function buildStructuredClozeText(items: ClozeItem[]): string {
 
       return `${index + 1}. ${promptWithAnswer}`;
     })
-    .join("\n");
+    .join("<br><br>");
+
+  const passage = cleanText(passageText);
+  return passage ? `${passage}<br><br>${questionText}` : questionText;
 }
 
 function buildQuestionFromRow(row: RawSheetRow, type: SupportedQuestionType): NormalizedQuestion {
   const correctAnswers = buildCorrectAnswers(row, type);
+  const defaultShuffleAnswers =
+    type === "single" ||
+    type === "multi" ||
+    type === "matching" ||
+    type === "dragdrop_text" ||
+    type === "select_missing_words";
 
   return {
     sourceSheet: row.sheetName,
@@ -244,9 +304,11 @@ function buildQuestionFromRow(row: RawSheetRow, type: SupportedQuestionType): No
     explanation: row.explanation,
     grade: parseGrade(row.grade, type === "description" ? 0 : 1),
     tolerance: parseTolerance(row.tolerance),
+    shuffleAnswers: parseOptionalBoolean(row.shuffleAnswers) ?? defaultShuffleAnswers,
     matchingPairs: [],
     dragDropTextItems: [],
     clozeItems: [],
+    clozePassageText: "",
   };
 }
 
@@ -264,7 +326,8 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
     }
 
     const passageKey = cleanText(row.passageId);
-    if (passageKey && row.passageText && !seenPassages.has(passageKey)) {
+    const isStructuredClozeRow = type === "cloze" && shouldBuildStructuredCloze(row);
+    if (passageKey && row.passageText && !seenPassages.has(passageKey) && !isStructuredClozeRow) {
       seenPassages.add(passageKey);
       questions.push({
         sourceSheet: row.sheetName,
@@ -279,9 +342,11 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
         explanation: "",
         grade: 0,
         tolerance: 0,
+        shuffleAnswers: false,
         matchingPairs: [],
         dragDropTextItems: [],
         clozeItems: [],
+        clozePassageText: "",
         isGeneratedPassage: true,
       });
     }
@@ -309,12 +374,17 @@ export function normalizeQuestions(rows: RawSheetRow[]): NormalizedQuestion[] {
         question = buildQuestionFromRow(row, type);
         question.questionText = "";
         question.correctAnswers = [];
+        question.clozePassageText = cleanText(row.passageText);
         placeholderChoiceMap.set(mapKey, question);
         questions.push(question);
+      } else if (!question.clozePassageText && row.passageText) {
+        question.clozePassageText = cleanText(row.passageText);
       }
 
       question.clozeItems.push(buildClozeItem(row));
-      question.questionText = buildStructuredClozeText(question.clozeItems);
+      question.shuffleAnswers = question.clozeItems.some((item) => item.shuffleAnswers);
+      question.questionText = buildStructuredClozeText(question.clozeItems, question.clozePassageText);
+      question.explanation = buildStructuredClozeFeedback(question.clozeItems);
       question.grade = parseGrade(row.grade, question.grade || question.clozeItems.length);
       return;
     }

@@ -40,7 +40,8 @@ Mở: http://localhost:5173
 category, question_id, type, question_name, question_text,
 option_a, option_b, option_c, option_d, option_e, option_f,
 correct_answer, left_text, right_text, explanation, grade,
-passage_id, passage_text, tolerance, cloze_answer_type, drag_no, drag_text, group, unlimited
+passage_id, passage_text, tolerance, cloze_answer_type, shuffle_answers, show_correct_when_wrong,
+drag_no, drag_text, group, unlimited
 ```
 
 ## Ghi chú
@@ -51,6 +52,6 @@ passage_id, passage_text, tolerance, cloze_answer_type, drag_no, drag_text, grou
 - `truefalse`: chấp nhận `TRUE/FALSE`, `Đúng/Sai`, `1/0`.
 - `dragdrop_text`: nhập nhiều dòng cùng `question_id`; `question_text` chứa chỗ trống dạng `[[1]]`, `[[2]]`; mỗi dòng có `drag_no`, `drag_text`, `group`, `unlimited`.
 - `select_missing_words`: nhập giống `dragdrop_text` nhưng Moodle hiển thị dạng dropdown; dùng `drag_no`, `drag_text`, `group`, không cần `unlimited`.
-- `cloze`: có thể nhập sẵn cú pháp `{...}` trong một dòng, hoặc nhập dạng bảng nhiều dòng cùng `question_id`; mỗi dòng là một câu nhỏ, dùng `correct_answer`, `cloze_answer_type` và option nếu là trắc nghiệm để app tự sinh mã Cloze. `cloze_answer_type` hỗ trợ `shortanswer`, `shortanswer_c`, `numerical`, `multichoice`, `mcv`, `mch`.
+- `cloze`: có thể nhập sẵn cú pháp `{...}` trong một dòng, hoặc nhập dạng bảng nhiều dòng cùng `question_id`; mỗi dòng là một câu nhỏ, dùng `correct_answer`, `cloze_answer_type` và option nếu là trắc nghiệm để app tự sinh mã Cloze. `cloze_answer_type` hỗ trợ `shortanswer`, `shortanswer_c`, `numerical`, `multichoice`, `mcv`, `mch`. Nếu có đoạn văn đọc hiểu, nhập `passage_text` ở dòng đầu của nhóm `question_id`; app sẽ đặt đoạn văn trước các câu hỏi nhỏ trong cùng câu Cloze.
 - Preview câu hỏi tự tải MathJax để render LaTeX trong text như `$x^2$`, `$$...$$`, `\(...\)` hoặc `\[...\]` khi trình duyệt có kết nối mạng.
 - Nội dung câu hỏi/đáp án được bọc CDATA để tránh lỗi XML với HTML, LaTeX, ký tự `<`, `>`, `&`.

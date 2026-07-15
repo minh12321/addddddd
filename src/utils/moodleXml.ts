@@ -9,21 +9,28 @@ function textTag(value: string): string {
   return `<text>${cdata(value)}</text>`;
 }
 
-function feedbackTag(value: string): string {
-  return `<feedback format="html">\n      ${textTag(value)}\n    </feedback>`;
+function generalFeedbackTag(value: string): string {
+  return `    <generalfeedback format="html">\n      ${textTag(value)}\n    </generalfeedback>`;
+}
+
+function xmlBoolean(value: boolean): string {
+  return value ? "true" : "false";
+}
+
+function xmlNumberBoolean(value: boolean): string {
+  return value ? "1" : "0";
 }
 
 function commonQuestionHeader(question: NormalizedQuestion): string {
-  return `    <name>\n      <text>${escapeXml(question.questionName || question.questionId)}</text>\n    </name>\n    <questiontext format="html">\n      ${textTag(question.questionText)}\n    </questiontext>\n    <defaultgrade>${formatNumber(question.grade)}</defaultgrade>\n    <penalty>${question.type === "essay" || question.type === "description" ? "0.0000000" : "0.3333333"}</penalty>\n    <hidden>0</hidden>`;
+  return `    <name>\n      <text>${escapeXml(question.questionName || question.questionId)}</text>\n    </name>\n    <questiontext format="html">\n      ${textTag(question.questionText)}\n    </questiontext>\n${generalFeedbackTag(question.explanation)}\n    <defaultgrade>${formatNumber(question.grade)}</defaultgrade>\n    <penalty>${question.type === "essay" || question.type === "description" ? "0.0000000" : "0.3333333"}</penalty>\n    <hidden>0</hidden>`;
 }
 
 function buildCategoryXml(category: string): string {
   return `  <question type="category">\n    <category>\n      <text>$course$/${escapeXml(category)}</text>\n    </category>\n  </question>`;
 }
 
-function buildAnswerXml(option: QuestionOption, fraction: number, explanation = ""): string {
-  const feedback = explanation ? `\n    ${feedbackTag(explanation)}` : "";
-  return `    <answer fraction="${fraction}" format="html">\n      ${textTag(option.text)}${feedback}\n    </answer>`;
+function buildAnswerXml(option: QuestionOption, fraction: number): string {
+  return `    <answer fraction="${fraction}" format="html">\n      ${textTag(option.text)}\n    </answer>`;
 }
 
 function buildChoiceXml(question: NormalizedQuestion): string {
@@ -32,25 +39,20 @@ function buildChoiceXml(question: NormalizedQuestion): string {
   const correctFraction = question.type === "multi" ? 100 / correctCount : 100;
 
   const answers = question.options
-    .map((option) => {
-      const isCorrect = correctSet.has(option.key);
-      return buildAnswerXml(option, isCorrect ? correctFraction : 0, isCorrect ? question.explanation : "");
-    })
+    .map((option) => buildAnswerXml(option, correctSet.has(option.key) ? correctFraction : 0))
     .join("\n\n");
 
-  return `  <question type="multichoice">\n${commonQuestionHeader(question)}\n    <single>${question.type === "single" ? "true" : "false"}</single>\n    <shuffleanswers>true</shuffleanswers>\n    <answernumbering>ABCD</answernumbering>\n${answers}\n  </question>`;
+  return `  <question type="multichoice">\n${commonQuestionHeader(question)}\n    <single>${question.type === "single" ? "true" : "false"}</single>\n    <shuffleanswers>${xmlBoolean(question.shuffleAnswers)}</shuffleanswers>\n    <answernumbering>none</answernumbering>\n${answers}\n  </question>`;
 }
 
 function buildTrueFalseXml(question: NormalizedQuestion): string {
   const isTrue = (question.correctAnswers[0] || "").toUpperCase() === "TRUE";
-  return `  <question type="truefalse">\n${commonQuestionHeader(question)}\n    <answer fraction="${isTrue ? 100 : 0}" format="moodle_auto_format">\n      <text>true</text>\n      ${feedbackTag(isTrue ? question.explanation || "Đúng." : "")}\n    </answer>\n    <answer fraction="${isTrue ? 0 : 100}" format="moodle_auto_format">\n      <text>false</text>\n      ${feedbackTag(!isTrue ? question.explanation || "Đúng." : "")}\n    </answer>\n  </question>`;
+  return `  <question type="truefalse">\n${commonQuestionHeader(question)}\n    <answer fraction="${isTrue ? 100 : 0}" format="moodle_auto_format">\n      <text>true</text>\n    </answer>\n    <answer fraction="${isTrue ? 0 : 100}" format="moodle_auto_format">\n      <text>false</text>\n    </answer>\n  </question>`;
 }
 
 function buildShortAnswerXml(question: NormalizedQuestion): string {
   const answers = question.correctAnswers
-    .map(
-      (answer) => `    <answer fraction="100" format="moodle_auto_format">\n      <text>${escapeXml(answer)}</text>\n      ${feedbackTag(question.explanation)}\n    </answer>`
-    )
+    .map((answer) => `    <answer fraction="100" format="moodle_auto_format">\n      <text>${escapeXml(answer)}</text>\n    </answer>`)
     .join("\n\n");
 
   return `  <question type="shortanswer">\n${commonQuestionHeader(question)}\n    <usecase>0</usecase>\n${answers}\n  </question>`;
@@ -58,7 +60,7 @@ function buildShortAnswerXml(question: NormalizedQuestion): string {
 
 function buildNumericalXml(question: NormalizedQuestion): string {
   const answer = question.correctAnswers[0] || "";
-  return `  <question type="numerical">\n${commonQuestionHeader(question)}\n    <answer fraction="100" format="moodle_auto_format">\n      <text>${escapeXml(answer)}</text>\n      ${feedbackTag(question.explanation)}\n      <tolerance>${question.tolerance}</tolerance>\n    </answer>\n  </question>`;
+  return `  <question type="numerical">\n${commonQuestionHeader(question)}\n    <answer fraction="100" format="moodle_auto_format">\n      <text>${escapeXml(answer)}</text>\n      <tolerance>${question.tolerance}</tolerance>\n    </answer>\n  </question>`;
 }
 
 function buildMatchingXml(question: NormalizedQuestion): string {
@@ -68,9 +70,8 @@ function buildMatchingXml(question: NormalizedQuestion): string {
     )
     .join("\n\n");
 
-  return `  <question type="matching">\n${commonQuestionHeader(question)}\n    <shuffleanswers>true</shuffleanswers>\n${pairs}\n  </question>`;
+  return `  <question type="matching">\n${commonQuestionHeader(question)}\n    <shuffleanswers>${xmlBoolean(question.shuffleAnswers)}</shuffleanswers>\n${pairs}\n  </question>`;
 }
-
 
 function buildDragDropTextXml(question: NormalizedQuestion): string {
   const dragBoxes = question.dragDropTextItems
@@ -80,7 +81,7 @@ function buildDragDropTextXml(question: NormalizedQuestion): string {
     })
     .join("\n\n");
 
-  return `  <question type="ddwtos">\n${commonQuestionHeader(question)}\n    <shuffleanswers>1</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${dragBoxes}\n  </question>`;
+  return `  <question type="ddwtos">\n${commonQuestionHeader(question)}\n    <shuffleanswers>${xmlNumberBoolean(question.shuffleAnswers)}</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${dragBoxes}\n  </question>`;
 }
 
 function buildSelectMissingWordsXml(question: NormalizedQuestion): string {
@@ -90,11 +91,11 @@ function buildSelectMissingWordsXml(question: NormalizedQuestion): string {
     )
     .join("\n\n");
 
-  return `  <question type="gapselect">\n${commonQuestionHeader(question)}\n    <shuffleanswers>1</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${selectOptions}\n  </question>`;
+  return `  <question type="gapselect">\n${commonQuestionHeader(question)}\n    <shuffleanswers>${xmlNumberBoolean(question.shuffleAnswers)}</shuffleanswers>\n    <correctfeedback format="html">\n      ${textTag("Đúng.")}\n    </correctfeedback>\n    <partiallycorrectfeedback format="html">\n      ${textTag("Đúng một phần.")}\n    </partiallycorrectfeedback>\n    <incorrectfeedback format="html">\n      ${textTag("Chưa đúng.")}\n    </incorrectfeedback>\n    <shownumcorrect/>\n${selectOptions}\n  </question>`;
 }
 
 function buildEssayXml(question: NormalizedQuestion): string {
-  return `  <question type="essay">\n${commonQuestionHeader(question)}\n    <responseformat>editor</responseformat>\n    <responserequired>1</responserequired>\n    <responsefieldlines>15</responsefieldlines>\n    <attachments>0</attachments>\n    <attachmentsrequired>0</attachmentsrequired>\n    <graderinfo format="html">\n      ${textTag(question.explanation)}\n    </graderinfo>\n    <answer fraction="0" format="html">\n      <text></text>\n    </answer>\n  </question>`;
+  return `  <question type="essay">\n${commonQuestionHeader(question)}\n    <responseformat>editor</responseformat>\n    <responserequired>1</responserequired>\n    <responsefieldlines>15</responsefieldlines>\n    <attachments>0</attachments>\n    <attachmentsrequired>0</attachmentsrequired>\n    <graderinfo format="html">\n      ${textTag("")}\n    </graderinfo>\n    <answer fraction="0" format="html">\n      <text></text>\n    </answer>\n  </question>`;
 }
 
 function buildDescriptionXml(question: NormalizedQuestion): string {
@@ -102,7 +103,7 @@ function buildDescriptionXml(question: NormalizedQuestion): string {
 }
 
 function buildClozeXml(question: NormalizedQuestion): string {
-  return `  <question type="cloze">\n${commonQuestionHeader(question)}\n  </question>`;
+  return `  <question type="cloze">\n${commonQuestionHeader(question)}\n    <shuffleanswers>${xmlNumberBoolean(question.shuffleAnswers)}</shuffleanswers>\n  </question>`;
 }
 
 function buildQuestionXml(question: NormalizedQuestion): string {

@@ -31,6 +31,8 @@ export interface RawSheetRow {
   passageText: string;
   tolerance: string;
   clozeAnswerType: string;
+  shuffleAnswers: string;
+  showCorrectWhenWrong: string;
   dragNo: string;
   dragText: string;
   dragGroup: string;
@@ -64,6 +66,8 @@ export interface ClozeItem {
   correctAnswers: string[];
   options: QuestionOption[];
   tolerance: number;
+  shuffleAnswers: boolean;
+  showCorrectWhenWrong: boolean;
   explanation: string;
   rowNumber: number;
 }
@@ -81,9 +85,11 @@ export interface NormalizedQuestion {
   explanation: string;
   grade: number;
   tolerance: number;
+  shuffleAnswers: boolean;
   matchingPairs: MatchingPair[];
   dragDropTextItems: DragDropTextItem[];
   clozeItems: ClozeItem[];
+  clozePassageText?: string;
   isGeneratedPassage?: boolean;
 }
 

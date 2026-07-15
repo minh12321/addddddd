@@ -191,6 +191,12 @@ export function QuestionPreview({ questions }: QuestionPreviewProps) {
                 {question.clozeItems.map((item, itemIndex) => (
                   <li key={`${item.rowNumber}-${itemIndex}`}>
                     <strong>{itemIndex + 1}. {renderClozeAnswerType(item.answerType)}</strong> <RichTextPreview text={item.prompt} />
+                    {(item.shuffleAnswers || item.showCorrectWhenWrong) && (
+                      <span className="muted">
+                        {" "}Â· {item.shuffleAnswers ? "shuffle" : "khong shuffle"}
+                        {item.showCorrectWhenWrong ? " Â· hien dap an khi sai" : ""}
+                      </span>
+                    )}
                     <span className="muted"> {" "}· đáp án: {item.correctAnswers.join("; ")}</span>
                   </li>
                 ))}
