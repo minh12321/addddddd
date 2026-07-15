@@ -212,27 +212,16 @@ function escapeClozeFeedback(value: string): string {
   return cleanText(value).replace(/([~{}])/g, "\\$1");
 }
 
-function getCorrectClozeAnswerText(item: ClozeItem): string {
-  if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
-    const correctOptions = item.options
-      .filter((option) => isCorrectClozeOption(option, item.correctAnswers))
-      .map((option) => option.text);
-
-    if (correctOptions.length) return correctOptions.join("; ");
-  }
-
-  return item.correctAnswers.join("; ");
+function buildClozeFeedbackSuffix(value: string): string {
+  const feedback = cleanText(value);
+  return feedback ? `#${escapeClozeFeedback(feedback)}` : "";
 }
 
 function buildWrongClozeFeedback(item: ClozeItem): string {
   const parts: string[] = [];
-  const correctAnswerText = getCorrectClozeAnswerText(item);
   const explanation = cleanText(item.explanation);
 
-  if (item.showCorrectWhenWrong && correctAnswerText) parts.push(`Đáp án đúng: ${correctAnswerText}`);
-  if (explanation) {
-    parts.push(explanation);
-  }
+  if (explanation) parts.push(explanation);
 
   return parts.join(". ");
 }
@@ -247,7 +236,7 @@ function buildClozeAnswerCode(item: ClozeItem): string {
   if (item.answerType === "numerical") {
     const answer = normalizeClozeNumericalAnswer(item.correctAnswers[0] || "");
     const correctFeedback = buildCorrectClozeFeedback(item);
-    const feedback = correctFeedback ? `#${escapeClozeFeedback(correctFeedback)}` : "";
+    const feedback = buildClozeFeedbackSuffix(correctFeedback);
     return `{${weight}:NUMERICAL:=${escapeClozeText(answer)}:${item.tolerance}${feedback}}`;
   }
 
@@ -266,7 +255,7 @@ function buildClozeAnswerCode(item: ClozeItem): string {
         const isCorrect = isCorrectClozeOption(option, item.correctAnswers);
         const correctnessMarker = isCorrect ? "=" : "";
         const optionFeedback = isCorrect ? correctFeedback : wrongFeedback;
-        const feedback = optionFeedback ? `#${escapeClozeFeedback(optionFeedback)}` : "";
+        const feedback = buildClozeFeedbackSuffix(optionFeedback);
         return `${separator}${correctnessMarker}${escapeClozeText(option.text)}${feedback}`;
       })
       .join("");
@@ -274,10 +263,10 @@ function buildClozeAnswerCode(item: ClozeItem): string {
   }
 
   const correctFeedback = buildCorrectClozeFeedback(item);
-  const correctFeedbackSuffix = correctFeedback ? `#${escapeClozeFeedback(correctFeedback)}` : "";
+  const correctFeedbackSuffix = buildClozeFeedbackSuffix(correctFeedback);
   const answers = item.correctAnswers.map((answer) => `=${escapeClozeText(answer)}${correctFeedbackSuffix}`).join("~");
   const wrongFeedback = buildWrongClozeFeedback(item);
-  const fallbackWrongAnswer = wrongFeedback ? `~*#${escapeClozeFeedback(wrongFeedback)}` : "";
+  const fallbackWrongAnswer = wrongFeedback ? `~*${buildClozeFeedbackSuffix(wrongFeedback)}` : "";
   return `{${weight}:${item.answerType === "shortanswer_c" ? "SHORTANSWER_C" : "SHORTANSWER"}:${answers}${fallbackWrongAnswer}}`;
 }
 
@@ -292,7 +281,7 @@ function buildStructuredClozeText(items: ClozeItem[], passageText = ""): string 
       const prompt = cleanText(item.prompt);
       const promptWithAnswer = prompt.includes("[[answer]]")
         ? prompt.replace(/\[\[answer\]\]/g, answerCode)
-        : `${prompt} ${answerCode}`.trim();
+        : `${prompt}<br>${answerCode}`.trim();
 
       return `${index + 1}. ${promptWithAnswer}`;
     })
