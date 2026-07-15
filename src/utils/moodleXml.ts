@@ -21,34 +21,16 @@ function xmlNumberBoolean(value: boolean): string {
   return value ? "1" : "0";
 }
 
-function commonQuestionHeader(question: NormalizedQuestion, includeGeneralFeedback = true): string {
-  const generalFeedback = includeGeneralFeedback ? `\n${generalFeedbackTag(question.explanation)}` : "";
-  return `    <name>\n      <text>${escapeXml(question.questionName || question.questionId)}</text>\n    </name>\n    <questiontext format="html">\n      ${textTag(question.questionText)}\n    </questiontext>${generalFeedback}\n    <defaultgrade>${formatNumber(question.grade)}</defaultgrade>\n    <penalty>${question.type === "essay" || question.type === "description" ? "0.0000000" : "0.3333333"}</penalty>\n    <hidden>0</hidden>`;
+function commonQuestionHeader(question: NormalizedQuestion): string {
+  return `    <name>\n      <text>${escapeXml(question.questionName || question.questionId)}</text>\n    </name>\n    <questiontext format="html">\n      ${textTag(question.questionText)}\n    </questiontext>\n${generalFeedbackTag(question.explanation)}\n    <defaultgrade>${formatNumber(question.grade)}</defaultgrade>\n    <penalty>${question.type === "essay" || question.type === "description" ? "0.0000000" : "0.3333333"}</penalty>\n    <hidden>0</hidden>`;
 }
 
 function buildCategoryXml(category: string): string {
   return `  <question type="category">\n    <category>\n      <text>$course$/${escapeXml(category)}</text>\n    </category>\n  </question>`;
 }
 
-function answerFeedbackTag(value: string): string {
-  return `\n    <feedback format="html">\n      ${textTag(value)}\n    </feedback>`;
-}
-
-function buildAnswerXml(option: QuestionOption, fraction: number, feedback = ""): string {
-  return `    <answer fraction="${fraction}" format="html">\n      ${textTag(option.text)}${feedback ? answerFeedbackTag(feedback) : ""}\n    </answer>`;
-}
-
-function buildChoiceAnswerFeedback(question: NormalizedQuestion, isCorrect: boolean): string {
-  const explanation = question.explanation.trim();
-  if (isCorrect) return explanation;
-
-  const correctSet = new Set(question.correctAnswers.map((answer) => answer.toUpperCase()));
-  const correctTexts = question.options
-    .filter((option) => correctSet.has(option.key))
-    .map((option) => option.text);
-  const correctAnswer = correctTexts.length ? `Đáp án đúng: ${correctTexts.join("; ")}` : "";
-
-  return [correctAnswer, explanation].filter(Boolean).join(". ");
+function buildAnswerXml(option: QuestionOption, fraction: number): string {
+  return `    <answer fraction="${fraction}" format="html">\n      ${textTag(option.text)}\n    </answer>`;
 }
 
 function buildChoiceXml(question: NormalizedQuestion): string {
@@ -57,22 +39,15 @@ function buildChoiceXml(question: NormalizedQuestion): string {
   const correctFraction = question.type === "multi" ? 100 / correctCount : 100;
 
   const answers = question.options
-    .map((option) => {
-      const isCorrect = correctSet.has(option.key);
-      return buildAnswerXml(option, isCorrect ? correctFraction : 0, buildChoiceAnswerFeedback(question, isCorrect));
-    })
+    .map((option) => buildAnswerXml(option, correctSet.has(option.key) ? correctFraction : 0))
     .join("\n\n");
 
-  return `  <question type="multichoice">\n${commonQuestionHeader(question, false)}\n    <single>${question.type === "single" ? "true" : "false"}</single>\n    <shuffleanswers>${xmlBoolean(question.shuffleAnswers)}</shuffleanswers>\n    <answernumbering>none</answernumbering>\n${answers}\n  </question>`;
+  return `  <question type="multichoice">\n${commonQuestionHeader(question)}\n    <single>${question.type === "single" ? "true" : "false"}</single>\n    <shuffleanswers>${xmlBoolean(question.shuffleAnswers)}</shuffleanswers>\n    <answernumbering>none</answernumbering>\n${answers}\n  </question>`;
 }
 
 function buildTrueFalseXml(question: NormalizedQuestion): string {
   const isTrue = (question.correctAnswers[0] || "").toUpperCase() === "TRUE";
-  const correctAnswer = isTrue ? "TRUE" : "FALSE";
-  const trueFeedback = [isTrue ? "" : `Đáp án đúng: ${correctAnswer}`, question.explanation.trim()].filter(Boolean).join(". ");
-  const falseFeedback = [!isTrue ? "" : `Đáp án đúng: ${correctAnswer}`, question.explanation.trim()].filter(Boolean).join(". ");
-
-  return `  <question type="truefalse">\n${commonQuestionHeader(question, false)}\n    <answer fraction="${isTrue ? 100 : 0}" format="moodle_auto_format">\n      <text>true</text>${trueFeedback ? answerFeedbackTag(trueFeedback) : ""}\n    </answer>\n    <answer fraction="${isTrue ? 0 : 100}" format="moodle_auto_format">\n      <text>false</text>${falseFeedback ? answerFeedbackTag(falseFeedback) : ""}\n    </answer>\n  </question>`;
+  return `  <question type="truefalse">\n${commonQuestionHeader(question)}\n    <answer fraction="${isTrue ? 100 : 0}" format="moodle_auto_format">\n      <text>true</text>\n    </answer>\n    <answer fraction="${isTrue ? 0 : 100}" format="moodle_auto_format">\n      <text>false</text>\n    </answer>\n  </question>`;
 }
 
 function buildShortAnswerXml(question: NormalizedQuestion): string {
