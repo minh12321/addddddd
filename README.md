@@ -40,7 +40,7 @@ Mở: http://localhost:5173
 category, question_id, type, question_name, question_text,
 option_a, option_b, option_c, option_d, option_e, option_f,
 correct_answer, left_text, right_text, explanation, grade,
-passage_id, passage_text, tolerance, cloze_answer_type, shuffle_answers, show_correct_when_wrong,
+passage_id, passage_text, tolerance, cloze_answer_type, shuffle_answers, show_correct_when_wrong, auto_explanation,
 drag_no, drag_text, group, unlimited
 ```
 

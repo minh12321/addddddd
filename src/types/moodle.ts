@@ -33,6 +33,7 @@ export interface RawSheetRow {
   clozeAnswerType: string;
   shuffleAnswers: string;
   showCorrectWhenWrong: string;
+  autoExplanation: string;
   dragNo: string;
   dragText: string;
   dragGroup: string;
@@ -68,6 +69,7 @@ export interface ClozeItem {
   tolerance: number;
   shuffleAnswers: boolean;
   showCorrectWhenWrong: boolean;
+  autoExplanation: boolean;
   explanation: string;
   rowNumber: number;
 }

@@ -194,8 +194,9 @@ function buildClozeItem(row: RawSheetRow): ClozeItem {
     correctAnswers,
     options: buildOptions(row),
     tolerance: parseTolerance(row.tolerance),
-    shuffleAnswers: parseOptionalBoolean(row.shuffleAnswers) ?? false,
+    shuffleAnswers: parseOptionalBoolean(row.shuffleAnswers) ?? true,
     showCorrectWhenWrong: parseOptionalBoolean(row.showCorrectWhenWrong) ?? true,
+    autoExplanation: parseOptionalBoolean(row.autoExplanation) ?? false,
     explanation: row.explanation,
     rowNumber: row.rowNumber,
   };
@@ -205,6 +206,10 @@ function isCorrectClozeOption(option: { key: OptionKey; text: string }, correctA
   const correctKeySet = new Set(correctAnswers.map((answer) => answer.toUpperCase()));
   const correctTextSet = new Set(correctAnswers.map((answer) => cleanText(answer).toLowerCase()));
   return correctKeySet.has(option.key) || correctTextSet.has(cleanText(option.text).toLowerCase());
+}
+
+function escapeClozeFeedback(value: string): string {
+  return cleanText(value).replace(/([~{}])/g, "\\$1");
 }
 
 function getCorrectClozeAnswerText(item: ClozeItem): string {
@@ -219,12 +224,31 @@ function getCorrectClozeAnswerText(item: ClozeItem): string {
   return item.correctAnswers.join("; ");
 }
 
+function buildWrongClozeFeedback(item: ClozeItem): string {
+  const parts: string[] = [];
+  const correctAnswerText = getCorrectClozeAnswerText(item);
+  const explanation = cleanText(item.explanation);
+
+  if (item.showCorrectWhenWrong && correctAnswerText) parts.push(`Đáp án đúng: ${correctAnswerText}`);
+  if (explanation) {
+    parts.push(explanation);
+  }
+
+  return parts.join(". ");
+}
+
+function buildCorrectClozeFeedback(item: ClozeItem): string {
+  return cleanText(item.explanation);
+}
+
 function buildClozeAnswerCode(item: ClozeItem): string {
   const weight = 1;
 
   if (item.answerType === "numerical") {
     const answer = normalizeClozeNumericalAnswer(item.correctAnswers[0] || "");
-    return `{${weight}:NUMERICAL:=${escapeClozeText(answer)}:${item.tolerance}}`;
+    const correctFeedback = buildCorrectClozeFeedback(item);
+    const feedback = correctFeedback ? `#${escapeClozeFeedback(correctFeedback)}` : "";
+    return `{${weight}:NUMERICAL:=${escapeClozeText(answer)}:${item.tolerance}${feedback}}`;
   }
 
   if (item.answerType === "multichoice" || item.answerType === "mcv" || item.answerType === "mch") {
@@ -234,35 +258,31 @@ function buildClozeAnswerCode(item: ClozeItem): string {
       mch: ["MCH", "MCHS"],
     };
     const moodleType = moodleTypeByAnswerType[item.answerType][item.shuffleAnswers ? 1 : 0];
+    const correctFeedback = buildCorrectClozeFeedback(item);
+    const wrongFeedback = buildWrongClozeFeedback(item);
     const answers = item.options
       .map((option, index) => {
         const separator = index === 0 ? "" : "~";
         const isCorrect = isCorrectClozeOption(option, item.correctAnswers);
         const correctnessMarker = isCorrect ? "=" : "";
-        return `${separator}${correctnessMarker}${escapeClozeText(option.text)}`;
+        const optionFeedback = isCorrect ? correctFeedback : wrongFeedback;
+        const feedback = optionFeedback ? `#${escapeClozeFeedback(optionFeedback)}` : "";
+        return `${separator}${correctnessMarker}${escapeClozeText(option.text)}${feedback}`;
       })
       .join("");
     return `{${weight}:${moodleType}:${answers}}`;
   }
 
-  const answers = item.correctAnswers.map((answer) => `=${escapeClozeText(answer)}`).join("~");
-  return `{${weight}:${item.answerType === "shortanswer_c" ? "SHORTANSWER_C" : "SHORTANSWER"}:${answers}}`;
+  const correctFeedback = buildCorrectClozeFeedback(item);
+  const correctFeedbackSuffix = correctFeedback ? `#${escapeClozeFeedback(correctFeedback)}` : "";
+  const answers = item.correctAnswers.map((answer) => `=${escapeClozeText(answer)}${correctFeedbackSuffix}`).join("~");
+  const wrongFeedback = buildWrongClozeFeedback(item);
+  const fallbackWrongAnswer = wrongFeedback ? `~*#${escapeClozeFeedback(wrongFeedback)}` : "";
+  return `{${weight}:${item.answerType === "shortanswer_c" ? "SHORTANSWER_C" : "SHORTANSWER"}:${answers}${fallbackWrongAnswer}}`;
 }
 
 function buildStructuredClozeFeedback(items: ClozeItem[]): string {
-  return items
-    .map((item, index) => {
-      const parts: string[] = [];
-      const correctAnswerText = getCorrectClozeAnswerText(item);
-      const explanation = cleanText(item.explanation);
-
-      if (item.showCorrectWhenWrong && correctAnswerText) parts.push(`Đáp án đúng: ${correctAnswerText}`);
-      if (explanation) parts.push(explanation);
-
-      return parts.length ? `${index + 1}. ${parts.join(". ")}` : "";
-    })
-    .filter(Boolean)
-    .join("<br>");
+  return "";
 }
 
 function buildStructuredClozeText(items: ClozeItem[], passageText = ""): string {
